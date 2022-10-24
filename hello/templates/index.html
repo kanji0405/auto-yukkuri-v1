@@ -1,58 +1,73 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block content %}
+{% load static %}
+<script src={% static 'js/UI_Manager.js' %} type="text/javascript"></script>
+<script src={% static 'js/Mecab_Manager.js' %} type="text/javascript"></script>
+<div>
+  <div class="common_params">
+    <label>
+      <span>解説者：</span><br>
+      <select id="speakerInfo">
+        <!-- TODO-speaker -->
+        <option name="ゆっくり霊夢">ゆっくり霊夢</option>
+      </select>
+    </label>
+    <label>
+      <span>改行位置：</span><br>
+      <div style="display:inline-block">
+        <input id="newLineNum" type="range" value="18" min="5" max="50"
+          onchange="UI_Manager.changeRangeNum(this)"
+        >
+        <input value="18" type="number" style="width: 3em" disabled>
+      </div>
+    </label>
+  </div>
 
-<div class="jumbotron text-center">
-  <div class="container">
-    <a href="/" class="lang-logo">
-      <img src="{% static 'lang-logo.png'%}">
-    </a>
-    <h1>Getting Started with Python on Heroku</h1>
-    <p>This is a sample Python application deployed to Heroku. It's a reasonably simple app - but a good foundation for understanding how to get the most out of the Heroku platform.</p>
-    <a type="button" class="btn btn-lg btn-default" href="https://devcenter.heroku.com/articles/getting-started-with-python"><span class="glyphicon glyphicon-flash"></span> Getting Started with Python</a>
-    <a type="button" class="btn btn-lg btn-primary" href="https://github.com/heroku/python-getting-started"><span class="glyphicon glyphicon-download"></span> Source on GitHub</a>
-  </div>
-</div>
-<div class="container">
-  <div class="alert alert-info text-center" role="alert">
-    To deploy your own copy, and learn the fundamentals of the Heroku platform, head over to the <a href="https://devcenter.heroku.com/articles/getting-started-with-python" class="alert-link">Getting Started with Python on Heroku</a> tutorial.
-  </div>
-  <hr>
-  <div class="row">
-    <div class="col-md-6">
-      <h3><span class="glyphicon glyphicon-info-sign"></span> How this sample app works</h3>
+  <table id="input_tab">
+    <tr>
+      <th name="form_wiki" class="tab selected">Wikipedia</th>
+      <th name="form_text" class="tab">自由作文</th>
+    </tr>
+  </table>
+  <div id="input_form">
+    <div id="form_wiki" class="form selected">
+      <h3>ここにURLを入力</h3>
+      <input type="url"
+        placeholder="https://ja.wikipedia.org/wiki/"
+        value="https://ja.wikipedia.org/wiki/%E3%82%86%E3%81%A3%E3%81%8F%E3%82%8A%E6%80%A5%E3%81%92"
+      >
+      <button name="form_wiki" type="submit">出力</button>
       <ul>
-        <li>This app was deployed to Heroku, either using Git or by using <a href="https://github.com/heroku/python-getting-started">Heroku Button</a> on the repository.</li>
-
-        <li>When Heroku received the source code, it fetched all the dependencies in <a href="https://github.com/heroku/python-getting-started/blob/main/requirements.txt">requirements.txt</a>, creating a deployable slug.</li>
-        <li>The platform then spins up a dyno, a lightweight container that provides an isolated environment in which the slug can be mounted and executed.</li>
-        <li>You can scale your app, manage it, and deploy over <a href="https://addons.heroku.com/">150 add-on services</a>, from the Dashboard or CLI.</li>
+        <li>＜＞、（）、[]などの括弧は中の文章ごと除去されます</li>
+        <li>脚注、出典、関連文献、関連項目に到達すると探索を終了します</li>
+        <li>Wikipediaの仕様変更によってはスクレイピングが失敗する可能性があります。予めご了承ください。</li>
       </ul>
     </div>
-    <div class="col-md-6">
-      <h3><span class="glyphicon glyphicon-link"></span> Next Steps</h3>
+
+    <div id="form_text" class="form">
+      <h3>ここに文章を入力</h3>
+<textarea placeholder="ここに文章を入力する">
+「ゆっくり急げ」は、ヨーロッパで古くから用いられている格言。
+「良い結果により早く至るためにはゆっくり行くのが良い」、
+または「歩みが遅すぎても求める結果は得られない」を同時に意味する。
+</textarea>
+      <button name="form_text" type="submit">出力</button>
       <ul>
-        <li>If you are following the <a href="https://devcenter.heroku.com/articles/getting-started-with-python">Getting Started</a> guide, then please head back to the tutorial and follow the next steps!</li>
-        <li>If you deployed this app by deploying the Heroku Button, then in a command line shell, run:</li>
-        <ul>
-          <li><code>git clone https://github.com/heroku/python-getting-started.git</code> - this will create a local copy of the source code for the app</li>
-          <li><code>cd python-getting-started</code> - change directory into the local source code repository</li>
-          <li><code>heroku git:remote -a &lt;your-app-name></code> - associate the Heroku app with the repository</li>
-          <li>You'll now be set up to run the app locally, or <a href="https://devcenter.heroku.com/articles/getting-started-with-python#push-local-changes">deploy changes</a> to Heroku</li>
-        </ul>
-      </ul>
-      <h3><span class="glyphicon glyphicon-link"></span> Helpful Links</h3>
-      <ul>
-        <li><a href="https://www.heroku.com/home">Heroku</a></li>
-        <li><a href="https://devcenter.heroku.com/">Heroku Dev Center</a></li>
-        <li><a href="https://devcenter.heroku.com/articles/getting-started-with-python">Getting Started with Python on Heroku</a></li>
-        <li><a href="https://devcenter.heroku.com/articles/django-app-configuration">Configuring Django Apps for Heroku</a></li>
+        <li>文章は「だ・である調」で統一してください</li>
+        <li>「。」が一セリフの区切りとなります</li>
       </ul>
     </div>
-  </div> <!-- row -->
-   <div class="alert alert-info text-center" role="alert">
-    Please do work through the Getting Started guide, even if you do know how to build such an application.  The guide covers the basics of working with Heroku, and will familiarize you with all the concepts you need in order to build and deploy your own apps.
   </div>
+  <progress></progress>
+  <p id="result_text"></p>
+  <table id="result_header" style="width: 100%">
+    <tr>
+      <td style="width: 70%"><h2 id="result_title"></h2></td>
+      <td style="text-align: right;"><button>ダウンロード</button></td>
+    </tr>
+  </table>
+  <div id="result_diff"></div>
+
 </div>
+
 {% endblock %}
