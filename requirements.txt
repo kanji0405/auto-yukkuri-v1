@@ -8,4 +8,3 @@ mecab-python3
 unidic-lite
 requests
 python-csv
-difflib
