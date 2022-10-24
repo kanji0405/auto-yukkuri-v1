@@ -15,21 +15,24 @@ Wikipedia
 */
 class Mecab_Manager{
 	static async sendMessage(mode, params){
+		/*
 		const fd = new FormData();
 		fd.append('mode', mode);
 		fd.append('params', params);
-		/*
 		const file = new File(
 			[params],
 			"param.txt", {type:"text/plain;charset=utf-8"}
 		);
 		fd.append("params", file);
 		*/
-		return fetch(`/mecab`, {
+		return fetch(`/mecab?mode=${mode}&params=${params}`
+		/*
+		, {
 			method: 'POST',
 			'Content-Type': 'application/x-www-form-urlencoded',
 			body: fd
-		}).then(
+		}*/
+		).then(
 			r => r.text()
 		).then(r =>{
 			if (r === 'null'){
