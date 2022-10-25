@@ -1,0 +1,104 @@
+:root{
+	--back-color: #493636;
+	--text-color: #e6eee6;
+	--selected: #e6eee6;
+	--not-selected: #866d6d;
+	--form-color: #e1d5d5;
+}
+body{
+	margin: 0;
+	padding: 0;
+	background-color: var(--back-color);
+}
+
+span{
+	font-weight: bold;
+}
+button{
+	margin: 0;
+	padding: 0 9px;
+	background-color: var(--not-selected);
+	color: var(--text-color);
+	border: 1px solid var(--back-color);
+	border-radius: unset;
+	font-weight: bold;
+	cursor: pointer;
+	font-size: larger;
+}
+button:hover{
+	background-color: var(--form-color);
+	color: var(--back-color);
+}
+button:active{
+	background-color: var(--back-color);
+	color: var(--not-selected);
+	border: 1px solid var(--text-color);
+}
+input[type=url],select,textarea{
+	background-color: var(--form-color);
+	border: 1px solid var(--back-color);
+	color: 1px solid var(--back-color);
+	border-radius: unset;
+}
+header, footer{
+	color: var(--text-color);
+	margin: 0px auto 8px;
+	padding: 0 12px 0;
+	max-width: 800px
+}
+article{
+	border: 3px dashed var(--back-color);
+	border-left: unset;
+	border-right: unset;
+	background-color: var(--text-color);
+	color: var(--back-color);
+	margin: 0;
+	width: 100%;
+}
+article > div{
+	max-width: 800px;
+	padding: 20px 10px;
+	margin: 0 auto;
+	min-height: 100px;
+}
+h1, h2, h3{
+	font-weight: normal;
+	margin-bottom: 0
+}
+h1+p{
+	border-top: 3px var(--text-color) dashed;
+	padding-top: 4px;
+	margin: 0 0 0;
+}
+nav ul{
+	padding: 0;
+}
+nav li{
+	list-style: none;
+	text-align: center;
+	padding: 0 8px;
+	margin: 0 2px 3px;
+	text-align: center;
+	float: left;
+}
+ul{
+	padding-left: 32px;
+}
+footer{
+	text-align: center;
+}
+.logo_icons{
+	display: inline;
+	height: 64px;
+	white-space: nowrap;
+}
+.logo_icons img{
+	width: 48px;
+	height: 48px;
+	display: inline-block;
+	padding: 0 4px;
+}
+footer p{
+	display: inline-block;
+	text-align: left;
+}

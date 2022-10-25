@@ -1,0 +1,106 @@
+.common_params{
+	width: 100%;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+}
+.common_params label{
+	display: inline-flex;
+	margin-right: 8px;
+
+}
+img.chara{
+	width: 1.5em;
+	height: 1.5em;
+	margin: 0 2px
+}
+#input_tab{
+	width:100%;
+	border-collapse: collapse;
+}
+#input_tab tr{
+	width:100%;
+}
+th.tab{
+	width: 50%;
+	background-color: var(--not-selected);
+	border: 1px solid var(--back-color);
+	border-bottom: none;
+	border-collapse: collapse;
+	cursor: pointer;
+}
+th.tab.selected{
+	background-color: var(--selected);
+}
+#input_form{
+	border: 1px solid var(--back-color);
+	border-top: none
+}
+div.form{
+	display: none;
+}
+div.form.selected{
+	display: unset;
+}
+
+.form{
+	width: 100%;
+	padding: 6px 4px;
+	margin: 0;
+}
+.form h3{
+	margin: 0 0 4px;
+	text-align: center;
+	font-weight: bold;
+}
+.form input, .form textarea{
+	margin: 0 auto;
+	display: block;
+}
+.form input{
+	width: 70%;
+}
+.form textarea{
+	width: 80%;
+	height: 9em
+}
+.form button{
+	display: block;
+	margin: 5px auto 4px;
+}
+#result_header{
+	border: 3px double var(--back-color);
+
+}
+#result_text{
+	margin: 6px 0;
+}
+#result_title{
+	margin: auto 0
+}
+#result_diff{
+	overflow: scroll;
+}
+#result_area{
+	display: none;
+}
+
+/* difflib */
+#result_diff{ width: 100%; }
+table.diff {font-family:Courier; border:medium;}
+.diff_next {background-color:var(--not-selected)}
+.diff_header {background-color:var(--form-color)}
+#result_diff tr{
+	vertical-align: baseline;
+}
+td.diff_header {
+	text-align:right;
+	border-bottom: 1px solid var(--not-selected)
+}
+td.diff_header + td{
+	border-bottom: 1px solid var(--not-selected);
+	white-space: nowrap;
+}
+.diff_add {background-color:#aaffaa}
+.diff_chg {background-color:#ffff77}
+.diff_sub {background-color:#ffaaaa}

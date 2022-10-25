@@ -1,42 +1,54 @@
 {% extends "base.html" %}
 {% block content %}
 {% load static %}
+<link href={% static 'css/index.css' %} type="text/css" rel="stylesheet">
 <script src={% static 'js/UI_Manager.js' %} type="text/javascript"></script>
 <script src={% static 'js/Mecab_Manager.js' %} type="text/javascript"></script>
+
 <div>
   <div class="common_params">
     <label>
       <span>解説者：</span><br>
-      <select id="speakerInfo">
-        <!-- TODO-speaker -->
-        <option name="ゆっくり霊夢">ゆっくり霊夢</option>
-      </select>
+      <select id="speakerInfo" onchange="UI_Manager.onChangeSpeakerInfo(this, ...arguments);"></select>
+      <img src={% static 'chara/mrs.png' %} alt="mrs" class="chara">
+      <img src={% static 'chara/rim.png' %} alt="rim" class="chara">
+      <img src={% static 'chara/znd.png' %} alt="znd" class="chara">
     </label>
     <label>
-      <span>改行位置：</span><br>
+      <span>改行目安：</span><br>
       <div style="display:inline-block">
         <input id="newLineNum" type="range" value="18" min="5" max="50"
-          onchange="UI_Manager.changeRangeNum(this)"
+          onchange="UI_Manager.onChangeRangeNum(this)"
         >
         <input value="18" type="number" style="width: 3em" disabled>
+      </div>
+    </label>
+    <label>
+      <span>最大行数：</span><br>
+      <div style="display:inline-block">
+        <input id="newLineSize" type="range" value="3" min="2" max="15"
+          onchange="UI_Manager.onChangeRangeNum(this)"
+        >
+        <input value="3" type="number" style="width: 3em" disabled>
       </div>
     </label>
   </div>
 
   <table id="input_tab">
     <tr>
-      <th name="form_wiki" class="tab selected">Wikipedia</th>
-      <th name="form_text" class="tab">自由作文</th>
+      <th name="form_wiki" onclick="UI_Manager.onClickTab(0);" class="tab selected">Wikipedia</th>
+      <th name="form_text" onclick="UI_Manager.onClickTab(1);" class="tab">自由作文</th>
     </tr>
   </table>
   <div id="input_form">
     <div id="form_wiki" class="form selected">
       <h3>ここにURLを入力</h3>
       <input type="url"
+        onkeypress="UI_Manager.onUrlPressed(...arguments);"
         placeholder="https://ja.wikipedia.org/wiki/"
         value="https://ja.wikipedia.org/wiki/%E3%82%86%E3%81%A3%E3%81%8F%E3%82%8A%E6%80%A5%E3%81%92"
       >
-      <button name="form_wiki" type="submit">出力</button>
+      <button name="form_wiki" onclick="UI_Manager.onClickSubmit(0)" type="submit">出力</button>
       <ul>
         <li>＜＞、（）、[]などの括弧は中の文章ごと除去されます</li>
         <li>脚注、出典、関連文献、関連項目に到達すると探索を終了します</li>
@@ -51,23 +63,25 @@
 「良い結果により早く至るためにはゆっくり行くのが良い」、
 または「歩みが遅すぎても求める結果は得られない」を同時に意味する。
 </textarea>
-      <button name="form_text" type="submit">出力</button>
+      <button name="form_text" onclick="UI_Manager.onClickSubmit(1)" type="submit">出力</button>
       <ul>
         <li>文章は「だ・である調」で統一してください</li>
         <li>「。」が一セリフの区切りとなります</li>
       </ul>
     </div>
   </div>
-  <progress></progress>
   <p id="result_text"></p>
-  <table id="result_header" style="width: 100%">
-    <tr>
-      <td style="width: 70%"><h2 id="result_title"></h2></td>
-      <td style="text-align: right;"><button>ダウンロード</button></td>
-    </tr>
-  </table>
-  <div id="result_diff"></div>
-
+  <div id="result_area">
+    <table id="result_header" style="width: 100%">
+      <tr>
+        <td style="width: 70%"><h2 id="result_title"></h2></td>
+        <td style="text-align: right;">
+          <button id="download_csv" onclick="UI_Manager.onExportCsv()">ダウンロード</button>
+        </td>
+      </tr>
+    </table>
+    <div id="result_diff"></div>
+    </div>
 </div>
 
 {% endblock %}

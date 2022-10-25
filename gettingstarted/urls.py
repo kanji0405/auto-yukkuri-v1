@@ -16,5 +16,5 @@ import hello.views
 
 urlpatterns = [
     path("", hello.views.index, name="index"),
-    path("mecab", hello.views.mecab)
+    path("back", hello.views.back)
 ]

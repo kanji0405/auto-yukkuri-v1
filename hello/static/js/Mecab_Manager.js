@@ -14,51 +14,77 @@ Wikipedia
 6. (PY)CSVにフォーマット
 */
 class Mecab_Manager{
+	// this._processMode = "";
+	// this._result
 	static async sendMessage(mode, params){
-		/*
 		const fd = new FormData();
 		fd.append('mode', mode);
 		fd.append('params', params);
-		const file = new File(
-			[params],
-			"param.txt", {type:"text/plain;charset=utf-8"}
-		);
-		fd.append("params", file);
-		*/
-		return fetch(`/mecab?mode=${mode}&params=${params}`
-		/*
-		, {
+		return fetch(`/back`, {
 			method: 'POST',
 			'Content-Type': 'application/x-www-form-urlencoded',
 			body: fd
-		}*/
-		).then(
+		}).then(
 			r => r.text()
 		).then(r =>{
 			if (r === 'null'){
-				throw new Error('fetching error');
+				throw new Error('server: ArgumentError');
 			}else{
 				return r;
 			}
 		});
 	}
 	static async getPageContents(url){
-		const result = await this.sendMessage('url', url);
-		return this.htmlToSentence(result);
+		if (url.match(/^(http(?:s)?\:\/\/)ja\.wikipedia\.org\/wiki\//)){
+			const result = await this.sendMessage('url', url);
+			return this.scrapeWikipedia(result);
+		}else{
+			this.setProcessingMode('failed');
+			return 0;
+		}
 	}
-	static htmlToSentence(result){
+	static scrapeWikipedia(result){
+		this.setProcessingMode('js');
 		const html = new DOMParser().parseFromString(result, "text/html");
 		let title = html.getElementById('firstHeading');
 		title = title ? title.innerText : 'no_title';
 
-		let children = html.getElementById(
-			'mw-content-text'
-		).querySelectorAll('h2, p, ul, ol');
-		const stopId = ['脚注', '出典', '関連文献', '関連項目'];
+		let children = html.querySelector('#mw-content-text');
+		if (children){
+			children = children.querySelectorAll(
+				'#mw-content-text > div > h2, #mw-content-text > div > p, ' +
+				'#mw-content-text > div > ul > li, #mw-content-text > div > ol > li, ' +
+				'#mw-content-text > div > blockquote'
+			);//, dt, dd');
+			const removeClasses = ['gallery'];
+			children = Array.from(children).filter(el => {
+				while (el){
+					if (removeClasses.some(klass => el.classList.contains(klass))){
+						return false;
+					}else{
+						el = el.parentElement;
+					}
+				}
+				return true;
+			});
+			if (children.length === 0){
+				this.setProcessingMode('failed');
+				return 1;
+			}
+		}else{
+			return 1;
+		}
+		const stopId = [
+			'脚注', '出典', '関連文献', '関連項目',
+			'参考文献', '外部リンク', '関連作品', '栄典'
+		];
 		let needsStop = false;
 		let text = '';
+		const nr = Mecab_Manager.NOT_REPLACE;
 		for (let i = 0; needsStop === false && i < children.length; i++){
 			const child = children[i];
+			if (child.innerText.length <= 1){ continue; }
+			let str = child.innerText;
 			switch (child.tagName.toLowerCase()){
 				case 'h2':{
 					if (stopId.some(id => child.querySelector('#' + id))){
@@ -67,26 +93,34 @@ class Mecab_Manager{
 					break;
 				}
 				case 'p':{
-					text += child.innerText;
+					text += str;
 					break;
 				}
-				case 'ul':
-				case 'ol':{
-					text += Array.from(child.children).filter(
-						li => li.tagName.toLowerCase() === 'li'
-					).map(
-						li => '・' + li.innerText + '。'
-					).join('\n');
+				case 'dt':{
+					if (str.endsWith('。')){ str = str.slice(0, str.length - 1); }
+					text += nr + str + "、" + nr;
+					break;
+				}
+				case 'dd':{
+					if (str.endsWith('。')){ str = str.slice(0, str.length - 1); }
+					text += nr + str + "。" + nr;
+					break;
+				}
+				case 'li':{
+					if (str.endsWith('。')){ str = str.slice(0, str.length - 1); }
+					text += nr + "・" + str + "。" + nr;
 					break;
 				}
 			}
 		}
-		return [title, this.clip_out_brackets(text)];
+		// styleが混ざる不具合に対応
+		text = text.replace(/@media\screen/g, '');
+		return [title, text];
 	}
 	static find_all_brackets(text){
 		const brackets = [
-			["[", "(", "（", "<"],
-			["]", ")", "）", ">"]
+			["[", "(", "（", "<", '{'],
+			["]", ")", "）", ">", '}']
 		];
 		const found_brackets = [];
 		let found_bracket = [];
@@ -111,56 +145,130 @@ class Mecab_Manager{
 			const range = ranges[i]
 			text = text.slice(0, range[0]) + text.slice(range[1])
 		}
-		return text
+		return text;
 	}
 
-	static async startProcessing(title, all_text, speaker, newLineNum){
+	static textPlainFormat(text){
+		// 「」内の語尾変化を行わない
+		const nr = Mecab_Manager.NOT_REPLACE;
+		text = text.replace(/([「『【])/g, nr + '$1');
+		text = text.replace(/([」』】])/g, '$1' + nr);
+		// 不要なスペース、改行を除去
+		text = text.replace(/[\n\r]+/gm, '');
+		text = text.replace(/^\s+|\s*。\s*/gm, '。');
+		// mecabに消されないように半角スペースを全角に
+		text = text.replace(/\s+/gm, '　');
+		text = this.clip_out_brackets(text);
+		return text;
+	}
+
+	static async startProcessing(
+		title, all_text, speaker, newLineNum, newLineSize
+	){
 		try{
-			all_text = all_text.replace(' ', '　');
-			let mecab = await this.processParseByMecab(all_text);
-			let new_texts = this.processChangeSpeaking(mecab, speaker).join('');
-			mecab = await this.processParseByMecab(new_texts);
-			new_texts = this.processNewLine(mecab, newLineNum);
+			this.setProcessingMode('py');
+			let mecab = await this.processParseByMecab(
+				this.textPlainFormat(all_text)
+			);
+
+			this.setProcessingMode('js');
+			let [old_text, new_text] = this.processChangeSpeaking(
+				mecab, speaker
+			);
+
+			this.setProcessingMode('py');
+			mecab = await this.processParseByMecab(new_text);
+
+			this.setProcessingMode('js');
+			const re_big_space = /　+/g;
+			old_text = old_text.replace(re_big_space, ' ');
+			new_text = new_text.replace(re_big_space, ' ');
+			const new_texts = this.processNewLine(
+				mecab, newLineNum, newLineSize
+			).map(str => str.replace(re_big_space, ' '));
+
+			const old_texts = old_text.replace(
+				re_big_space, ' '
+			).split("。").map(str => str + '。');
+
+			// Mecab対策のスペースを外す
 			this._result = {
 				title: title,
-				old_text: all_text.split('。').map(str => str + '。'),
+				old_text: old_texts,
 				new_text: new_texts,
 				speaker: speaker,
-				newLineNum: newLineNum
+				newLineNum: newLineNum,
+				newLineSize: newLineSize
 			};
-			UI_Manager.setResultLog('台本が出来上がりました！');
-			await this.processShowDifference(
-				this._result.old_text,
-				this._result.new_text
-			);
+			await this.processShowDifference();
+			this.setProcessingMode('succeed');
 		}catch(e){
-			UI_Manager.setResultLog('何かがうまくいかなかったようです……');
 			console.log(e);
+			this.setProcessingMode('failed');
 		}
 	}
 
-	static async processShowDifference(old_text, new_text){
-		const diff = await this.sendMessage('diff',
-			JSON.stringify([old_text, new_text])
+	static setProcessingMode(mode){
+		let text = '';
+		switch (mode){
+			case 'py':{ text = 'サーバーの応答を待っています……'; break; }
+			case 'js':{ text = '文章を処理しています……'; break; }
+			case 'succeed':{
+				text = '台本が出来上がりました！';
+				mode = '';
+				break;
+			}
+			case 'failed':{
+				switch (this._processMode){
+					case 'py':{ text = 'サーバー側の処理に失敗しました'; break; }
+					case 'js':{ text = 'ユーザー側の処理に失敗しました'; break; }
+				}
+				mode = '';
+				break;
+			}
+		}
+		this._processMode = mode;
+		UI_Manager.setResultLog(text);
+	}
+
+	// 処理中のプロセスがあればボタンを無効にする
+	static isProcessing(){
+		return this._processMode && this._processMode.length > 0;
+	}
+
+	static async processShowDifference(){
+		const old_texts = this._result.old_text;
+		const new_texts = this._result.new_text;
+		const str_diff = '@!@';
+		const re_in = /\n/g;
+		const str_in = '@@@';
+		let diff = await this.sendMessage('diff',
+			JSON.stringify([old_texts, new_texts].map(
+				str => [str.join(str_diff).replace(re_in, str_in)]
+			))
 		);
+		diff = diff.replace(new RegExp(str_in, 'g'), '<br>');
+		diff = diff.replace(new RegExp(str_diff, 'g'), '<hr>');
 		UI_Manager.finishMecabManager(this._result, diff);
 	}
 
 	static async processParseByMecab(text){
 		const result = await this.sendMessage('mecab', text);
-		console.log(result)
 		// 『。』区切り
 		const splitters = [];
 		let splitter = [];
 		JSON.parse(result).map(str => str.split('\t')).forEach(function(noun_list){
 			if (noun_list[0] === '。'){
+				if (splitter.length <= 1){ return; }
 				splitters.push(splitter);
 				splitter = [];
 			}else{
 				splitter.push(noun_list);
 			}
 		});
-		if (splitter.length > 0){ splitters.push(splitter); }
+		if (splitter.length > Mecab_Manager.NOUN_TYPE){
+			splitters.push(splitter);
+		}
 		return splitters;
 	}
 	static processChangeSpeaking(mecab, speaker){
@@ -180,12 +288,18 @@ class Mecab_Manager{
 		const re_kei_hash = parse_compile_hash(speaker_info['語尾追加']["助動詞"]);
 		const last_excepts = speaker_info['語尾追加']["例外置換語尾"];
 
-		const all_texts = [];
+		const normal_gobi = Object.keys(speaker_info['語尾追加']).filter(
+			key => ['助動詞', '例外置換語尾'].includes(key) === false
+		);
+
+		let old_texts = '';
+		let all_texts = '';
 		mecab.forEach(function(noun_list){
 			let new_text = '';
 			noun_list.forEach(function(noun){
 				// 文中
 				let text = noun[0];
+				old_texts += text;
 				re_bunchus.some(function(re_bunchu){
 					const [term_type, cands] = re_bunchu[1];
 					if (
@@ -234,37 +348,131 @@ class Mecab_Manager{
 					return false;
 				});
 			}else{
-				const found = ["固有名詞", "名詞", "形容詞", "動詞"].find(
+				const found = normal_gobi.find(
 					name => noun[Mecab_Manager.NOUN_TYPE].includes(name)
 				);
 				if (found){
 					next = shift_random_count(speaker_info['語尾追加'][found]);
 				}
 			}
-			all_texts.push((new_text + next) + "。");
+			old_texts += "。";
+			all_texts += new_text + next + "。";
 		}, this);
-		return all_texts;
+		// 引用部を戻す
+		let old_parsed = "";
+		let new_parsed = "";
+		const new_quotes = this.getAtmarkQuotes(all_texts);
+		const old_quotes = this.getAtmarkQuotes(old_texts);
+		old_quotes.forEach(function(text, i){
+			old_parsed += text;
+			new_parsed += i % 2 === 0 ? new_quotes[i] : text;
+		}, "");
+
+		return [old_parsed, new_parsed];
 	}
 
-	static processNewLine(mecab, newLineNum){
-		let last_index = 0;
-		return mecab.map(function(noun_list){
-			return noun_list.reduce(function(r, noun, i){
+	static getAtmarkQuotes = function(text){
+		return text.split(Mecab_Manager.NOT_REPLACE);
+	}
+
+	static processNewLine(mecab, newLineNum, newLineSize){
+		const array = [];
+		mecab.forEach(function(noun_list){
+			let last_index = 0;
+			// 形態素による区切り
+			const texts = noun_list.reduce(function(r, noun, i){
+				const text = noun[0];
 				let cur_length = r.length - last_index;
-				if (
-					cur_length >= newLineNum &&
-					Mecab_Manager.BAN_NEW_LINES.includes(noun[0]) === false &&
-					i + 1 < mecab.length
-				){
-					last_index += cur_length + 1;
-					r += '\n';
+				if (cur_length >= newLineNum && 0 < i){
+					let needNewLine = false;
+					const cur_hinshi = noun_list[i - 1][Mecab_Manager.NOUN_TYPE];
+					const next_hinshi = noun[Mecab_Manager.NOUN_TYPE];
+					if (Mecab_Manager.BAN_NEW_LINES.test(text)){
+						needNewLine = false;
+					}else if (
+						cur_hinshi.includes('助動詞') ||
+						cur_hinshi.includes('動詞')
+					){
+						if (!next_hinshi.includes('助動詞')){
+							needNewLine = true;
+						}
+					}else if (cur_hinshi.includes('接続詞')){
+						if (!next_hinshi.includes('接続詞')){
+							needNewLine = true;
+						}
+					}else{
+						needNewLine = true;
+					}
+					if (needNewLine){
+						last_index += cur_length + 1;
+						r += '\n';
+					}
+				}else{
+					if (
+						text.length > 3 && text.length + cur_length >= newLineNum &&
+						noun[Mecab_Manager.NOUN_TYPE].includes('名詞')
+					){
+						let j;
+						for (j = 2; j < text.length; j++){
+							if (
+								j + cur_length >= newLineNum &&
+								!Mecab_Manager.BAN_NEW_LINES.test(text[j])
+							){
+								break;
+							}
+						}
+						last_index += cur_length + 1 + j;
+						return r += text.slice(0, j) + '\n' + text.slice(j, text.length);
+					}
 				}
-				return r += noun[0];
-			}, '').replace('　', ' ') + '。';
+				return r += text;
+			}, '') + "。";
+			const wLine = texts.split('\n');
+			const tmpLines = [];
+			for (let i = 0; i < wLine.length;){
+				tmpLines.push(wLine.slice(i, i += newLineSize).join('\n'));
+			}
+			if (tmpLines.length >= 2){
+				// N行以上ある時、最終行が2行以上行でなく
+				// 文字数が少なければ結合する
+				const prelastIndex = tmpLines.length - 2;
+				const lastLine = tmpLines[tmpLines.length - 1];
+				if (
+					lastLine.includes('\n') === false &&
+					(tmpLines[prelastIndex] + lastLine).length <=
+					newLineNum * (newLineSize + 1) - 6
+				){
+					tmpLines[prelastIndex] += tmpLines.pop();
+				}
+			}
+			array.push(...tmpLines);
 		});
+		return array;
 	}
 
-	static async exportCsv(){}
+	static async exportCsv(){
+		if (!this._result){
+			this.setProcessingMode('failed');
+			return null;
+		}else{
+			this.setProcessingMode('js');
+		}
+
+		const speaker = this._result.speaker;
+		const result = await this.sendMessage('csv',
+			JSON.stringify(this._result.new_text.map( line => [speaker, line] ))
+		);
+		if (result === null){
+			this.setProcessingMode('failed');
+			return null;
+		}else{
+			this.setProcessingMode('succeed');
+		}
+		const blob = URL.createObjectURL(new Blob([result], {type: "text/plain"}));
+		const title = '[' + this.GOBI_LIST[speaker]["ファイル名"] + ']' +
+			this._result.title.replace(/[\\\/\:\*\?\"\<\>\|]/g, "") + '.csv';
+		return [title, blob];
+	}
 }
 
 
@@ -273,14 +481,10 @@ class Mecab_Manager{
 //=========================================================================================
 Mecab_Manager.NOUN_TYPE = 4;
 
-Mecab_Manager.BAN_NEW_LINES = [
-    "「", "」", "、", "。",
-    "！", "？", "　", "・",
-    "ぁ", "ぃ", "ぅ", "ぇ", "ぉ",
-    "っ", "ゃ", "ゅ", "ょ",
-    "ァ", "ィ", "ゥ", "ェ", "ォ",
-    "ッ", "ャ", "ュ", "ョ"
-];
+Mecab_Manager.NOT_REPLACE = "@@@";
+
+Mecab_Manager.BAN_NEW_LINES =
+/^[\w\+\-\!\?\,\.\"\'ァィゥェォッャュョンぁぃぅぇぉっゃゅょん　」！？、。・―…]/;
 
 //=========================================================================================
 // - 語尾リスト（一つずつずらしながら置き換えられる）
@@ -288,6 +492,7 @@ Mecab_Manager.BAN_NEW_LINES = [
 Mecab_Manager.GOBI_LIST = {
     "ゆっくり魔理沙": { // ゆっくりムービーメーカーで対応するキャラ名を指定
       "ファイル名": "mrs", // Google Driveに出力する際の識別子、文字数不問
+	  "画像ソース": "", //自動生成
       "品詞置換":{ // 形態素の正規表現: ["品詞の一部", [置換先文字列x3]]
         "^あり|おり$":            ["非自立可能", ["あって", "あり", "あるから"]],
         "^しばしば$":             ["副詞", ["よく", "しばしば", "よく"]],
@@ -316,6 +521,7 @@ Mecab_Manager.GOBI_LIST = {
         },
         // 以下の品詞で終わった際語尾に追加する
         "固有名詞":     ["だ", "らしい", "だそうだ"],
+		"名詞-普通名詞-サ変可能": ["する", "するんだ", "するんだぜ"],
         "名詞":         ["だ", "だ", "なんだぜ"],
         "形容詞":       ["んだ", "", "んだぜ"],
         "動詞":         ["んだ", "ぜ", "んだぜ"]
@@ -323,6 +529,7 @@ Mecab_Manager.GOBI_LIST = {
     },
     "ゆっくり霊夢": {
       "ファイル名": "rim",
+	  "画像ソース": "", //自動生成
       "品詞置換":{
           "^しかし|、しかし$":   ["接続詞", ["しかし", "だけど", "でも"]],
           "^すなわち|即ち$":      ["接続詞", ["つまり", "すなわち", "つまり"]],
@@ -354,6 +561,7 @@ Mecab_Manager.GOBI_LIST = {
           "^ない$":                ["ないわ", "ない", "ないの"],
         },
         "固有名詞":     ["よ", "", "だそうよ"],
+		"名詞-普通名詞-サ変可能": ["する", "するの", "するのよ"],
         "名詞":         ["よ", "なの", "なのよ"],
         "形容詞":       ["わ", "ね", "の"],
         "動詞":         ["の", "わ", "んだって"]
@@ -361,6 +569,7 @@ Mecab_Manager.GOBI_LIST = {
     },
     "ずんだもん": {
       "ファイル名": "znd",
+	  "画像ソース": "", //自動生成
       "品詞置換":{
         "^しかし|、しかし$":     ["接続詞", ["でも", "だけど", "しかし"]],
         "^すなわち|即ち$":        ["接続詞", ["つまり", "つまり", "つまり"]],
@@ -392,6 +601,7 @@ Mecab_Manager.GOBI_LIST = {
           "^ない$":                ["ないのだ", "ないのだ", "ないのだ"],
         },
         "固有名詞":     ["なのだ", "なのだ", "なのだ"],
+		"名詞-普通名詞-サ変可能": ["する", "する", "するのだ"],
         "名詞":         ["なのだ", "なのだ", "なのだ"],
         "形容詞":       ["のだ", "のだ", "のだ"],
         "動詞":         ["のだ", "のだ", "のだ"]
