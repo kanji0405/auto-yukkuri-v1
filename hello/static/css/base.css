@@ -9,8 +9,8 @@ body{
 	margin: 0;
 	padding: 0;
 	background-color: var(--back-color);
+	color: var(--back-color)
 }
-
 span{
 	font-weight: bold;
 }
@@ -34,7 +34,7 @@ button:active{
 	color: var(--not-selected);
 	border: 1px solid var(--text-color);
 }
-input[type=url],select,textarea{
+input[type=text],select,textarea{
 	background-color: var(--form-color);
 	border: 1px solid var(--back-color);
 	color: 1px solid var(--back-color);
@@ -46,6 +46,20 @@ header, footer{
 	padding: 0 12px 0;
 	max-width: 800px
 }
+header a, footer a{
+	color: var(--text-color);
+	text-decoration: none;
+}
+header li.selected{
+	background-color: var(--text-color);
+}
+header li.selected a{
+	color: var(--back-color)
+}
+header li:hover{
+	background-color: var(--not-selected);
+}
+
 article{
 	border: 3px dashed var(--back-color);
 	border-left: unset;
@@ -67,19 +81,23 @@ h1, h2, h3{
 }
 h1+p{
 	border-top: 3px var(--text-color) dashed;
-	padding-top: 4px;
-	margin: 0 0 0;
+	padding: 4px 0 0;
+	margin: 0;
 }
 nav ul{
 	padding: 0;
+	margin: 8px 0 0;
 }
-nav li{
+nav ul li{
 	list-style: none;
 	text-align: center;
-	padding: 0 8px;
-	margin: 0 2px 3px;
+	padding: 4px 16px;
+	margin: 0 0 3px;
 	text-align: center;
 	float: left;
+	border: 3px dashed var(--back-color);
+	border-left: 0;
+	border-right: 0;
 }
 ul{
 	padding-left: 32px;
@@ -93,12 +111,23 @@ footer{
 	white-space: nowrap;
 }
 .logo_icons img{
-	width: 48px;
-	height: 48px;
 	display: inline-block;
 	padding: 0 4px;
 }
 footer p{
 	display: inline-block;
 	text-align: left;
+}
+
+.radio_box{
+	text-align: center;
+	display: block;
+	margin: 0 auto;
+}
+
+.radio_box label{
+	text-align: left;
+	display: inline-block;
+	margin: 6px auto 0;
+	padding: 0 4px
 }

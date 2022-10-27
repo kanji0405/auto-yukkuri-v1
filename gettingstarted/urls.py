@@ -16,5 +16,6 @@ import hello.views
 
 urlpatterns = [
     path("", hello.views.index, name="index"),
+    path("howto", hello.views.howto, name="howto"),
     path("back", hello.views.back)
 ]

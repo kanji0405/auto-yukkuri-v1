@@ -34,89 +34,156 @@ class Mecab_Manager{
 			}
 		});
 	}
-	static async getPageContents(url){
-		if (url.match(/^(http(?:s)?\:\/\/)ja\.wikipedia\.org\/wiki\//)){
-			const result = await this.sendMessage('url', url);
-			return this.scrapeWikipedia(result);
+	static async getPageContents(siteName, url){
+		if (url.length > 0){
+			try{
+				this.setProcessingMode('js');
+				const result = await this.sendMessage(siteName, url);
+				const html = new DOMParser().parseFromString(result, "text/html");
+				switch (siteName){
+					case 'wiki':  return this.scrapeWikipedia(html, result);
+					case 'nico':  return this.scrapeNiconico(html, result);
+					case 'pixiv': return this.scrapePixivDict(html, result);
+				}
+			}catch (e){
+				console.log(e);
+				this.setProcessingMode('failed');
+				return 1;
+			}
 		}else{
 			this.setProcessingMode('failed');
 			return 0;
 		}
 	}
-	static scrapeWikipedia(result){
-		this.setProcessingMode('js');
-		const html = new DOMParser().parseFromString(result, "text/html");
+
+	static scrapeWikipedia(html){
 		let title = html.getElementById('firstHeading');
 		title = title ? title.innerText : 'no_title';
 
 		let children = html.querySelector('#mw-content-text');
-		if (children){
-			children = children.querySelectorAll(
-				'#mw-content-text > div > h2, #mw-content-text > div > p, ' +
-				'#mw-content-text > div > ul > li, #mw-content-text > div > ol > li, ' +
-				'#mw-content-text > div > blockquote'
-			);//, dt, dd');
-			const removeClasses = ['gallery'];
-			children = Array.from(children).filter(el => {
-				while (el){
-					if (removeClasses.some(klass => el.classList.contains(klass))){
-						return false;
-					}else{
-						el = el.parentElement;
-					}
+		children = children.querySelectorAll(
+			'#mw-content-text > div > h2, #mw-content-text > div > p, ' +
+			'#mw-content-text > div > ul > li, #mw-content-text > div > ol > li, ' +
+			'#mw-content-text > div > blockquote'
+		);//, dt, dd');
+		const removeClasses = ['gallery'];
+		children = Array.from(children).filter(el => {
+			while (el){
+				if (removeClasses.some(klass => el.classList.contains(klass))){
+					return false;
+				}else{
+					el = el.parentElement;
 				}
-				return true;
-			});
-			if (children.length === 0){
-				this.setProcessingMode('failed');
-				return 1;
 			}
-		}else{
+			return true;
+		});
+		return this.scrapeByChildren(title, children);
+	}
+
+	static scrapeNiconico(html){
+		let title = html.querySelector('.sw-Article_Title-label');
+		title = title ? title.innerText : 'no_title';
+		title = title.replace(/単語$/, "");
+
+		let children = html.getElementsByClassName('article')[0];
+		children = children.querySelectorAll('h2, p, li, blockquote');
+		return this.scrapeByChildren(title, children);
+	}
+
+	static scrapePixivDict(html){
+		let title = html.getElementById('article-name');
+		title = title ? title.innerText : 'no_title';
+
+		let children = html.getElementById('article-body');
+		children = children.querySelectorAll(
+			'#article-body > h2, #article-body > p, #article-body > blockquote,' +
+			'#article-body > ul > li, #article-body > ol > li'
+		);
+		const removeClasses = ['article_index'];
+		children = Array.from(children).filter(el => {
+			while (el){
+				if (removeClasses.some(klass => el.classList.contains(klass))){
+					return false;
+				}else{
+					el = el.parentElement;
+				}
+			}
+			return true;
+		});
+		return this.scrapeByChildren(title, children);
+	}
+
+	static scrapeByChildren(
+		title, children, removeClasses, stopElements
+	){
+		if (children.length === 0){
 			return 1;
 		}
-		const stopId = [
+		const noneedParagraph = [
 			'脚注', '出典', '関連文献', '関連項目',
-			'参考文献', '外部リンク', '関連作品', '栄典'
+			'参考文献', '外部リンク', '関連作品', '栄典',
+			'連載作品', '関連タグ', '他の記事言語', 'テーマ曲',
+			'関連人物', '代表作'
 		];
-		let needsStop = false;
+		let isNoneedParagraph = false;
 		let text = '';
-		const nr = Mecab_Manager.NOT_REPLACE;
-		for (let i = 0; needsStop === false && i < children.length; i++){
-			const child = children[i];
+		const nr0 = Mecab_Manager.NOT_REPLACE0;
+		const nr1 = Mecab_Manager.NOT_REPLACE1;
+		for (let i = 0; i < children.length; i++){
+			const child = this.removeHtmlTag(children[i]);
 			if (child.innerText.length <= 1){ continue; }
+			// styleが混ざる不具合に対応
 			let str = child.innerText;
 			switch (child.tagName.toLowerCase()){
 				case 'h2':{
-					if (stopId.some(id => child.querySelector('#' + id))){
-						needsStop = true;
-					}
+					isNoneedParagraph = noneedParagraph.some(
+						name => str.includes(name)
+					);
 					break;
 				}
 				case 'p':{
+					if (isNoneedParagraph){ continue; }
 					text += str;
 					break;
 				}
 				case 'dt':{
-					if (str.endsWith('。')){ str = str.slice(0, str.length - 1); }
-					text += nr + str + "、" + nr;
+					if (isNoneedParagraph){ continue; }
+					if (str.endsWith('。')){ str = str.slice(0, -1); }
+					text += nr0 + str + "、" + nr1;
 					break;
 				}
 				case 'dd':{
-					if (str.endsWith('。')){ str = str.slice(0, str.length - 1); }
-					text += nr + str + "。" + nr;
+					if (isNoneedParagraph){ continue; }
+					if (str.endsWith('。')){ str = str.slice(0, -1); }
+					text += nr0 + str + "。" + nr1;
 					break;
 				}
 				case 'li':{
-					if (str.endsWith('。')){ str = str.slice(0, str.length - 1); }
-					text += nr + "・" + str + "。" + nr;
+					if (isNoneedParagraph){ continue; }
+					if (str.endsWith('。')){ str = str.slice(0, -1); }
+					text += nr0 + "・" + str + "。" + nr1;
 					break;
 				}
 			}
 		}
-		// styleが混ざる不具合に対応
-		text = text.replace(/@media\screen/g, '');
 		return [title, text];
 	}
+
+	static removeHtmlTag(element){
+		const children = element.children;
+		for (let i = 0; i < children.length; i++){
+			const child = children[i];
+			const tagName = child.tagName.toLowerCase();
+			if (tagName === 'script' || tagName === 'style'){
+				element.removeChild(child);
+				i--;
+			}else{
+				this.removeHtmlTag(child);
+			}
+		}
+		return element;
+	}
+
 	static find_all_brackets(text){
 		const brackets = [
 			["[", "(", "（", "<", '{'],
@@ -150,11 +217,10 @@ class Mecab_Manager{
 
 	static textPlainFormat(text){
 		// 「」内の語尾変化を行わない
-		const nr = Mecab_Manager.NOT_REPLACE;
-		text = text.replace(/([「『【])/g, nr + '$1');
-		text = text.replace(/([」』】])/g, '$1' + nr);
+		text = text.replace(/[ 　]*([「『【])[ 　]*/g, Mecab_Manager.NOT_REPLACE0 + '$1');
+		text = text.replace(/[ 　]*([」』】])[ 　]*/g, '$1' + Mecab_Manager.NOT_REPLACE1);
 		// 不要なスペース、改行を除去
-		text = text.replace(/[\n\r]+/gm, '');
+		text = text.replace(/[ 　]*[\n\r]+[ 　]*/gm, '');
 		text = text.replace(/^\s+|\s*。\s*/gm, '。');
 		// mecabに消されないように半角スペースを全角に
 		text = text.replace(/\s+/gm, '　');
@@ -208,6 +274,10 @@ class Mecab_Manager{
 		}
 	}
 
+	static endProcessing(){
+		this._processMode = '';
+	}
+
 	static setProcessingMode(mode){
 		let text = '';
 		switch (mode){
@@ -253,11 +323,15 @@ class Mecab_Manager{
 	}
 
 	static async processParseByMecab(text){
-		const result = await this.sendMessage('mecab', text);
+		const response = await this.sendMessage('mecab', text);
+		const result = response.split('\n').map(
+			str => str.split('\t')
+		).slice(0, -2); // remove EOS
+
 		// 『。』区切り
 		const splitters = [];
 		let splitter = [];
-		JSON.parse(result).map(str => str.split('\t')).forEach(function(noun_list){
+		result.forEach(function(noun_list){
 			if (noun_list[0] === '。'){
 				if (splitter.length <= 1){ return; }
 				splitters.push(splitter);
@@ -271,6 +345,8 @@ class Mecab_Manager{
 		}
 		return splitters;
 	}
+
+	// TODO-Chara_Managerで外部化する
 	static processChangeSpeaking(mecab, speaker){
 		let randomize_count = 0;
 		const speaker_info = Mecab_Manager.GOBI_LIST[speaker];
@@ -335,13 +411,13 @@ class Mecab_Manager{
 				exc => new_text.endsWith(exc)
 			);
 			if (last_key){
-				new_text = new_text.slice(0, new_text.length - last_key.length);
+				new_text = new_text.slice(0, -last_key.length);
 				next = shift_random_count(last_excepts[last_key]);
 			}else if (noun[Mecab_Manager.NOUN_TYPE].includes("助動詞")){
 				// 語尾カウント
 				re_kei_hash.some(function(re_kei){
 					if (noun[0].match(re_kei[0])){
-						new_text = new_text.slice(0, new_text.length - noun[0].length);
+						new_text = new_text.slice(0, -noun[0].length);
 						next = shift_random_count(re_kei[1]);
 						return true;
 					}
@@ -361,18 +437,49 @@ class Mecab_Manager{
 		// 引用部を戻す
 		let old_parsed = "";
 		let new_parsed = "";
+
 		const new_quotes = this.getAtmarkQuotes(all_texts);
 		const old_quotes = this.getAtmarkQuotes(old_texts);
-		old_quotes.forEach(function(text, i){
-			old_parsed += text;
-			new_parsed += i % 2 === 0 ? new_quotes[i] : text;
-		}, "");
-
+		old_quotes.forEach(function(quote, i){
+			if (Array.isArray(quote)){
+				let q = quote[0];
+				old_parsed += q;
+				new_parsed += q;
+			}else{
+				old_parsed += quote;
+				new_parsed += new_quotes[i];
+			}
+		});
 		return [old_parsed, new_parsed];
 	}
 
 	static getAtmarkQuotes = function(text){
-		return text.split(Mecab_Manager.NOT_REPLACE);
+		const quotes = [];
+		let cur_str = "";
+		let nr_nest = 0;
+		const nr0 = Mecab_Manager.NOT_REPLACE0;
+		const nr1 = Mecab_Manager.NOT_REPLACE1;
+
+		for (let i = 0; i < text.length; i++){
+			const char = text[i];
+			if (char === nr0[0] && text.slice(i, i + nr0.length) === nr0){
+				i += nr0.length - 1;
+				if (nr_nest++ === 0){
+					quotes.push(cur_str);
+					cur_str = "";
+				}
+			}else if (char === nr1[0] && text.slice(i, i + nr1.length) === nr1){
+				if (--nr_nest === 0){
+					quotes.push([cur_str]);
+					cur_str = "";
+				}
+				i += nr1.length - 1;
+			}else{
+				cur_str += char;
+			}
+		}
+		if (cur_str.length > 0){ quotes.push(cur_str); }
+		return quotes;
 	}
 
 	static processNewLine(mecab, newLineNum, newLineSize){
@@ -388,6 +495,14 @@ class Mecab_Manager{
 					const cur_hinshi = noun_list[i - 1][Mecab_Manager.NOUN_TYPE];
 					const next_hinshi = noun[Mecab_Manager.NOUN_TYPE];
 					if (Mecab_Manager.BAN_NEW_LINES.test(text)){
+						needNewLine = false;
+					}else if (
+						cur_hinshi.includes('記号') ||
+						next_hinshi.includes('記号') || (
+							i + 1 < noun_list.length &&
+							noun_list[i + 1][Mecab_Manager.NOUN_TYPE].includes('記号')
+						)
+					){
 						needNewLine = false;
 					}else if (
 						cur_hinshi.includes('助動詞') ||
@@ -481,10 +596,14 @@ class Mecab_Manager{
 //=========================================================================================
 Mecab_Manager.NOUN_TYPE = 4;
 
-Mecab_Manager.NOT_REPLACE = "@@@";
+Mecab_Manager.NOT_REPLACE0 = "\1@@";
+Mecab_Manager.NOT_REPLACE1 = "\2@@";
 
 Mecab_Manager.BAN_NEW_LINES =
-/^[\w\+\-\!\?\,\.\"\'ァィゥェォッャュョンぁぃぅぇぉっゃゅょん　」！？、。・―…]/;
+/^[\w\+\-\!\?\,\.\"\'ァィゥェォッャュョンぁぃぅぇぉっゃゅょん　」』）｝】＞≫！？、。・ー―…ゝ々：；]/;
+
+Mecab_Manager.BAN_END_LINES =
+/\w「『（｛【＜≪［/;
 
 //=========================================================================================
 // - 語尾リスト（一つずつずらしながら置き換えられる）
@@ -492,6 +611,7 @@ Mecab_Manager.BAN_NEW_LINES =
 Mecab_Manager.GOBI_LIST = {
     "ゆっくり魔理沙": { // ゆっくりムービーメーカーで対応するキャラ名を指定
       "ファイル名": "mrs", // Google Driveに出力する際の識別子、文字数不問
+	  "ロゴカラー": ["#222", "#fc6"],
 	  "画像ソース": "", //自動生成
       "品詞置換":{ // 形態素の正規表現: ["品詞の一部", [置換先文字列x3]]
         "^あり|おり$":            ["非自立可能", ["あって", "あり", "あるから"]],
@@ -499,10 +619,11 @@ Mecab_Manager.GOBI_LIST = {
         "^すなわち|即ち$":        ["接続詞", ["つまり", "ということは", "つまり"]],
         "^など|等$":              ["助詞-副助詞", ["とか", "とか", "など"]],
       },
-      "単純置換":{ // 形態素無視、正規表現無効。単純に置き換えます。
-        "により":       ["によって", "が原因で", "のせいで"],
+      "単純置換":{ // 形態素無視、単純に置き換えます。
+        "により":       ["によって", "により", "のせいで"],
         "または":       ["それか", "それと", "または"],
         "現在においては": ["今では", "今では", "今では"],
+		"(\d{3,4})-(\d{3,4})": ["$1から$2", "$1から$2", "$1から$2"]
       },
       "語尾追加":{ // 一行の末尾につける語尾を指定
         "例外置換語尾":{ // この言葉で終わる文章は語尾追加を行わず置換する（形態素無視、正規表現無効）
@@ -515,13 +636,13 @@ Mecab_Manager.GOBI_LIST = {
           "^た$":                  ["たんだ", "た", "たぜ"],
           "^だ$":                  ["だ", "だぜ", "だぜ"],
           "^だろう$":              ["だろうな", "だと思うのぜ", "だろうぜ"],
-          "^れる$":                ["れるんだ", "れるぜ", "れるんだぜ"],
-          "^られる$":                ["られるんだ", "られるぜ", "られるんだぜ"],
+          "^(ら)?れる$":           ["$1れるんだ", "$1れるぜ", "$1れるんだぜ"],
           "^ない$":                ["ないんだ", "ないぜ", "ないんだぜ"],
         },
         // 以下の品詞で終わった際語尾に追加する
         "固有名詞":     ["だ", "らしい", "だそうだ"],
 		"名詞-普通名詞-サ変可能": ["する", "するんだ", "するんだぜ"],
+        "副助詞":       ["だ", "だ", "なんだぜ"],
         "名詞":         ["だ", "だ", "なんだぜ"],
         "形容詞":       ["んだ", "", "んだぜ"],
         "動詞":         ["んだ", "ぜ", "んだぜ"]
@@ -529,6 +650,7 @@ Mecab_Manager.GOBI_LIST = {
     },
     "ゆっくり霊夢": {
       "ファイル名": "rim",
+	  "ロゴカラー": ["#f44", "#a5f"],
 	  "画像ソース": "", //自動生成
       "品詞置換":{
           "^しかし|、しかし$":   ["接続詞", ["しかし", "だけど", "でも"]],
@@ -539,12 +661,13 @@ Mecab_Manager.GOBI_LIST = {
           "^など|等$":            ["助詞-副助詞", ["とか", "とか", "など"]],
           "^が$":                 ["助詞-接続助詞", ["けど", "けれども", "けど"]],
       },
-      "単純置換":{ // 形態素無視、正規表現無効
+      "単純置換":{ // 形態素無視
         "よれば":       ["よると", "よると", "よると"],
-        "により":       ["によって", "が原因で", "のせいで"],
+        "により":       ["によって", "により", "のせいで"],
         "または":       ["それか", "それと", "または"],
         "そのほか":       ["ほかにも", "そのほか", "ほかにも"],
         "現在においては": ["今では", "今では", "今では"],
+		"(\d{3,4})-(\d{3,4})": ["$1から$2", "$1から$2", "$1から$2"]
       },
       "語尾追加":{
         "例外置換語尾":{ // この言葉で終わる文章は語尾追加を行わず置換する（形態素無視、正規表現無効）
@@ -556,12 +679,12 @@ Mecab_Manager.GOBI_LIST = {
         "助動詞":{ // 置換する
           "^た$":                  ["たの", "た", "た"],
           "^だろう$":              ["でしょう", "だろうね", "でしょうね"],
-          "^れる$":                ["れるわ", "れるの", "れるのよ"],
-          "^られる$":              ["られるわ", "られるの", "られるのよ"],
+          "^(ら)?れる$":           ["$1れるわ", "$1れるの", "$1れるのよ"],
           "^ない$":                ["ないわ", "ない", "ないの"],
         },
         "固有名詞":     ["よ", "", "だそうよ"],
 		"名詞-普通名詞-サ変可能": ["する", "するの", "するのよ"],
+        "副助詞":       ["よ", "なの", "なのよ"],
         "名詞":         ["よ", "なの", "なのよ"],
         "形容詞":       ["わ", "ね", "の"],
         "動詞":         ["の", "わ", "んだって"]
@@ -569,6 +692,7 @@ Mecab_Manager.GOBI_LIST = {
     },
     "ずんだもん": {
       "ファイル名": "znd",
+	  "ロゴカラー": ["#8e6", "#8a0"],
 	  "画像ソース": "", //自動生成
       "品詞置換":{
         "^しかし|、しかし$":     ["接続詞", ["でも", "だけど", "しかし"]],
@@ -580,11 +704,12 @@ Mecab_Manager.GOBI_LIST = {
         "^など|等$":              ["助詞-副助詞", ["とか", "とか", "とか"]],
         "^が$":                   ["助詞-接続助詞", ["けど", "けど", "けど"]],
       },
-      "単純置換":{ // 形態素無視、正規表現無効
+      "単純置換":{ // 形態素無視
         "よれば":       ["よると", "よると", "よると"],
         "または":       ["それか", "それと", "または"],
         "そのほか":       ["ほかにも", "ほかにも", "ほかにも"],
         "現在においては": ["今では", "今では", "今では"],
+		"(\d{3,4})-(\d{3,4})": ["$1から$2", "$1から$2", "$1から$2"]
       },
       "語尾追加":{
         "例外置換語尾":{ // この言葉で終わる文章は語尾追加を行わず置換する（形態素無視、正規表現無効）
@@ -596,12 +721,12 @@ Mecab_Manager.GOBI_LIST = {
         "助動詞":{ // 置換する
           "^た$":                  ["たのだ", "たのだ", "たのだ"],
           "^だろう$":              ["だろうけどね", "だと思うのだ", "だろうね"],
-          "^れる$":                ["れるのだ", "れるのだ", "れるのだ"],
-          "^られる$":              ["られるのだ", "られるのだ", "られるのだ"],
+          "^(ら)?れる$":                ["$1れるのだ", "$1れるのだ", "$1れるのだ"],
           "^ない$":                ["ないのだ", "ないのだ", "ないのだ"],
         },
         "固有名詞":     ["なのだ", "なのだ", "なのだ"],
 		"名詞-普通名詞-サ変可能": ["する", "する", "するのだ"],
+        "副助詞":       ["なのだ", "なのだ", "なのだ"],
         "名詞":         ["なのだ", "なのだ", "なのだ"],
         "形容詞":       ["のだ", "のだ", "のだ"],
         "動詞":         ["のだ", "のだ", "のだ"]

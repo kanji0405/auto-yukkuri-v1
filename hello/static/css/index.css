@@ -6,13 +6,17 @@
 }
 .common_params label{
 	display: inline-flex;
+	margin-bottom: 8px;
 	margin-right: 8px;
 
 }
-img.chara{
+div.chara{
+	display: inline-block;
+	border-radius: 50%;
 	width: 1.5em;
 	height: 1.5em;
-	margin: 0 2px
+	padding: 0;
+	margin: 0 4px;
 }
 #input_tab{
 	width:100%;
@@ -24,13 +28,14 @@ img.chara{
 th.tab{
 	width: 50%;
 	background-color: var(--not-selected);
+	color: var(--form-color);
 	border: 1px solid var(--back-color);
 	border-bottom: none;
-	border-collapse: collapse;
 	cursor: pointer;
 }
 th.tab.selected{
 	background-color: var(--selected);
+	color: var(--back-color);
 }
 #input_form{
 	border: 1px solid var(--back-color);
@@ -48,9 +53,10 @@ div.form.selected{
 	padding: 6px 4px;
 	margin: 0;
 }
-.form h3{
+.form h2{
 	margin: 0 0 4px;
 	text-align: center;
+	font-size: 1.17em;
 	font-weight: bold;
 }
 .form input, .form textarea{
@@ -68,6 +74,11 @@ div.form.selected{
 	display: block;
 	margin: 5px auto 4px;
 }
+
+div.radio_box label{
+	margin: 10px 5px 0
+}
+
 #result_header{
 	border: 3px double var(--back-color);
 
@@ -76,6 +87,7 @@ div.form.selected{
 	margin: 6px 0;
 }
 #result_title{
+	font-size: 1.5em;
 	margin: auto 0
 }
 #result_diff{
@@ -87,7 +99,6 @@ div.form.selected{
 
 /* difflib */
 #result_diff{ width: 100%; }
-table.diff {font-family:Courier; border:medium;}
 .diff_next {background-color:var(--not-selected)}
 .diff_header {background-color:var(--form-color)}
 #result_diff tr{
@@ -99,7 +110,8 @@ td.diff_header {
 }
 td.diff_header + td{
 	border-bottom: 1px solid var(--not-selected);
-	white-space: nowrap;
+	white-space: normal;
+	word-break: break-all;
 }
 .diff_add {background-color:#aaffaa}
 .diff_chg {background-color:#ffff77}

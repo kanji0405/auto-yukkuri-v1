@@ -1,3 +1,7 @@
+window.addEventListener('load', function(){
+	UI_Manager.init();
+});
+
 class UI_Manager{
 	static init(){
 		// 解説者
@@ -21,6 +25,7 @@ class UI_Manager{
 	static getSpeakerName(){ return document.getElementById('speakerInfo'); }
 	static getNewLineNum(){ return document.getElementById('newLineNum'); }
 	static getNewLineSize(){ return document.getElementById('newLineSize'); }
+	static getSiteRadioButtons(){ return document.querySelectorAll('.radio_box input'); }
 	static refreshTab(){
 		this.getTabs().forEach((el, i) => this.setClassByIndex(el, i));
 		this.getForms().forEach((el, i) => this.setClassByIndex(el, i));
@@ -51,9 +56,12 @@ class UI_Manager{
 		el.nextElementSibling.value = el.value;
 	}
 	static onChangeSpeakerInfo(el){
-		const imgs = document.querySelectorAll('img.chara');
-		for (let i = 0; i < imgs.length; i++){
-			imgs[i].style.display = i === el.selectedIndex ? 'unset' : 'none';
+		const div = document.querySelector('div.chara');
+		const colors = Mecab_Manager.GOBI_LIST[el.value]['ロゴカラー'];
+		if (div && colors){
+			div.style.background = `linear-gradient(${colors[0]
+				} 0%,${colors[0]} 48%, ${colors[1]} 52%, ${colors[1]
+			} 100%)`;
 		}
 	}
 	static async onExportCsv(){
@@ -65,21 +73,39 @@ class UI_Manager{
 			atag.click();
 		}
 	}
+	static getSelectedSiteName(){
+		const radio_box = this.getSiteRadioButtons();
+		let siteName = 'wiki';
+		for (let i = 0; i < radio_box.length; i++){
+			if (radio_box[i].checked){
+				siteName = radio_box[i].value;
+				break;
+			}
+		}
+		return siteName;
+	}
 	static async onClickSubmit(index){
 		if (Mecab_Manager.isProcessing()){ return; }
 		const forms = this.getForms();
 		const speaker = this.getSpeakerName().value;
 		const newLineNum = Math.floor(this.getNewLineNum().value);
 		const newLineSize = Math.floor(this.getNewLineSize().value);
+		const siteName = this.getSelectedSiteName();
 		let title = '';
 		let allText = '';
 		switch (index){
 			case 0:{
 				allText = forms[index].getElementsByTagName('input')[0].value;
-				const result = await Mecab_Manager.getPageContents(allText);
+				const result = await Mecab_Manager.getPageContents(siteName, allText);
 				switch (result){
-					case 0:{ return this.setResultLog('URLの指定が無効です。'); }
-					case 1:{ return this.setResultLog('ページを取得できませんでした。'); }
+					case 0:{
+						Mecab_Manager.endProcessing();
+						return this.setResultLog('URLの指定が無効です。');
+					}
+					case 1:{
+						Mecab_Manager.endProcessing();
+						return this.setResultLog('ページを取得できませんでした。');
+					}
 					default: { [title, allText] = result; break; }
 				}
 				break;
@@ -105,15 +131,10 @@ class UI_Manager{
 		if (element){
 			element.innerHTML = diff;
 			const td = element.querySelector('td[nowrap=nowrap]');
+			td.removeAttribute('nowrap');
 			td.style.whiteSpace = 'normal';
+			td.style.width = "30%";
 		}
+		Mecab_Manager.endProcessing();
 	}
 };
-
-(function(){
-	const _window_onload = window.onload;
-	window.onload = function(){
-		if (_window_onload){ _window_onload.apply(this, arguments); }
-		UI_Manager.init();
-	}
-})();
