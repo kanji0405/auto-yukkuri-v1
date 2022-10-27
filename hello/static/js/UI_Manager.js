@@ -130,10 +130,14 @@ class UI_Manager{
 		const element = document.getElementById('result_diff');
 		if (element){
 			element.innerHTML = diff;
-			const td = element.querySelector('td[nowrap=nowrap]');
-			td.removeAttribute('nowrap');
-			td.style.whiteSpace = 'normal';
-			td.style.width = "30%";
+			const td = element.querySelectorAll('td[nowrap=nowrap]');
+			if (td){
+				Array.from(td).forEach(function(t){
+					t.removeAttribute('nowrap');
+					t.style.whiteSpace = 'normal';
+					t.style.width = "48%";
+				});
+			}
 		}
 		Mecab_Manager.endProcessing();
 	}

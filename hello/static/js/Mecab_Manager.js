@@ -62,9 +62,9 @@ class Mecab_Manager{
 
 		let children = html.querySelector('#mw-content-text');
 		children = children.querySelectorAll(
-			'#mw-content-text > div > h2, #mw-content-text > div > p, ' +
-			'#mw-content-text > div > ul > li, #mw-content-text > div > ol > li, ' +
-			'#mw-content-text > div > blockquote'
+`#mw-content-text > div > h2,         #mw-content-text > div > p,
+#mw-content-text > div > ul > li,     #mw-content-text > div > ol > li,
+#mw-content-text > div > blockquote`
 		);//, dt, dd');
 		const removeClasses = ['gallery'];
 		children = Array.from(children).filter(el => {
@@ -87,6 +87,7 @@ class Mecab_Manager{
 
 		let children = html.getElementsByClassName('article')[0];
 		children = children.querySelectorAll('h2, p, li, blockquote');
+		// page-menu
 		return this.scrapeByChildren(title, children);
 	}
 
@@ -120,10 +121,10 @@ class Mecab_Manager{
 			return 1;
 		}
 		const noneedParagraph = [
-			'脚注', '出典', '関連文献', '関連項目',
-			'参考文献', '外部リンク', '関連作品', '栄典',
-			'連載作品', '関連タグ', '他の記事言語', 'テーマ曲',
-			'関連人物', '代表作'
+			'脚注', '出典', '関連',
+			'参考文献', '外部リンク', '栄典',
+			'連載作品', '他の記事言語', '代表作',
+			'お絵カキコ', 'テーマ曲'
 		];
 		let isNoneedParagraph = false;
 		let text = '';
@@ -161,7 +162,7 @@ class Mecab_Manager{
 				case 'li':{
 					if (isNoneedParagraph){ continue; }
 					if (str.endsWith('。')){ str = str.slice(0, -1); }
-					text += nr0 + "・" + str + "。" + nr1;
+					text += nr0 + str + "、" + nr1;
 					break;
 				}
 			}
@@ -242,29 +243,21 @@ class Mecab_Manager{
 				mecab, speaker
 			);
 
+			/*
 			this.setProcessingMode('py');
 			mecab = await this.processParseByMecab(new_text);
-
+			*/
 			this.setProcessingMode('js');
-			const re_big_space = /　+/g;
-			old_text = old_text.replace(re_big_space, ' ');
-			new_text = new_text.replace(re_big_space, ' ');
-			const new_texts = this.processNewLine(
-				mecab, newLineNum, newLineSize
-			).map(str => str.replace(re_big_space, ' '));
 
-			const old_texts = old_text.replace(
-				re_big_space, ' '
-			).split("。").map(str => str + '。');
+			const new_texts = this.processNewLine(new_text, newLineNum, newLineSize);
+			const old_texts = this.processNewLine(old_text, newLineNum, newLineSize);
 
 			// Mecab対策のスペースを外す
 			this._result = {
 				title: title,
 				old_text: old_texts,
 				new_text: new_texts,
-				speaker: speaker,
-				newLineNum: newLineNum,
-				newLineSize: newLineSize
+				speaker: speaker
 			};
 			await this.processShowDifference();
 			this.setProcessingMode('succeed');
@@ -272,6 +265,54 @@ class Mecab_Manager{
 			console.log(e);
 			this.setProcessingMode('failed');
 		}
+	}
+
+	static processNewLine(all_text, newLineNum, newLineSize){
+		let texts = [];
+		let text = "";
+		let charLength = 0;
+
+		for (let i = 0; i < all_text.length; i++){
+			const char = all_text[i];
+
+			const post = i + 1 < all_text.length ? all_text[i + 1] : "";
+			if (char === '。'){
+				if (Mecab_Manager.BAN_FRONT_LINES.test(post)){
+					texts.push(text + char + post);
+					i++;
+				}else{
+					texts.push(text + char);
+				}
+				text = '';
+				charLength = 0;
+				continue;
+			}else if (charLength < newLineNum){
+				text += char;
+				charLength += char.length;
+				continue;
+			}
+			const pre = i > 0 ? all_text[i - 1] : "";
+			if (
+				!Mecab_Manager.BAN_NEW_LINES.test(char) &&
+				Mecab_Manager.BAN_BACK_LINES.test(pre)
+			){
+				text += char + '\n';
+				charLength = 0;
+			}else if (
+				!Mecab_Manager.BAN_NEW_LINES.test(post) &&
+				!Mecab_Manager.BAN_FRONT_LINES.test(post) &&
+				!Mecab_Manager.BAN_BACK_LINES.test(char)
+			){
+				text += char + '\n';
+				charLength = 0;
+			}else{
+				text += char;
+				charLength += char.length;
+			}
+		}
+		if (text.length > 0){ texts.push(text); }
+		const re_big_space = /　+/g;
+		return texts.map(str => str.replace(re_big_space, ' '));
 	}
 
 	static endProcessing(){
@@ -482,89 +523,6 @@ class Mecab_Manager{
 		return quotes;
 	}
 
-	static processNewLine(mecab, newLineNum, newLineSize){
-		const array = [];
-		mecab.forEach(function(noun_list){
-			let last_index = 0;
-			// 形態素による区切り
-			const texts = noun_list.reduce(function(r, noun, i){
-				const text = noun[0];
-				let cur_length = r.length - last_index;
-				if (cur_length >= newLineNum && 0 < i){
-					let needNewLine = false;
-					const cur_hinshi = noun_list[i - 1][Mecab_Manager.NOUN_TYPE];
-					const next_hinshi = noun[Mecab_Manager.NOUN_TYPE];
-					if (Mecab_Manager.BAN_NEW_LINES.test(text)){
-						needNewLine = false;
-					}else if (
-						cur_hinshi.includes('記号') ||
-						next_hinshi.includes('記号') || (
-							i + 1 < noun_list.length &&
-							noun_list[i + 1][Mecab_Manager.NOUN_TYPE].includes('記号')
-						)
-					){
-						needNewLine = false;
-					}else if (
-						cur_hinshi.includes('助動詞') ||
-						cur_hinshi.includes('動詞')
-					){
-						if (!next_hinshi.includes('助動詞')){
-							needNewLine = true;
-						}
-					}else if (cur_hinshi.includes('接続詞')){
-						if (!next_hinshi.includes('接続詞')){
-							needNewLine = true;
-						}
-					}else{
-						needNewLine = true;
-					}
-					if (needNewLine){
-						last_index += cur_length + 1;
-						r += '\n';
-					}
-				}else{
-					if (
-						text.length > 3 && text.length + cur_length >= newLineNum &&
-						noun[Mecab_Manager.NOUN_TYPE].includes('名詞')
-					){
-						let j;
-						for (j = 2; j < text.length; j++){
-							if (
-								j + cur_length >= newLineNum &&
-								!Mecab_Manager.BAN_NEW_LINES.test(text[j])
-							){
-								break;
-							}
-						}
-						last_index += cur_length + 1 + j;
-						return r += text.slice(0, j) + '\n' + text.slice(j, text.length);
-					}
-				}
-				return r += text;
-			}, '') + "。";
-			const wLine = texts.split('\n');
-			const tmpLines = [];
-			for (let i = 0; i < wLine.length;){
-				tmpLines.push(wLine.slice(i, i += newLineSize).join('\n'));
-			}
-			if (tmpLines.length >= 2){
-				// N行以上ある時、最終行が2行以上行でなく
-				// 文字数が少なければ結合する
-				const prelastIndex = tmpLines.length - 2;
-				const lastLine = tmpLines[tmpLines.length - 1];
-				if (
-					lastLine.includes('\n') === false &&
-					(tmpLines[prelastIndex] + lastLine).length <=
-					newLineNum * (newLineSize + 1) - 6
-				){
-					tmpLines[prelastIndex] += tmpLines.pop();
-				}
-			}
-			array.push(...tmpLines);
-		});
-		return array;
-	}
-
 	static async exportCsv(){
 		if (!this._result){
 			this.setProcessingMode('failed');
@@ -599,11 +557,13 @@ Mecab_Manager.NOUN_TYPE = 4;
 Mecab_Manager.NOT_REPLACE0 = "\1@@";
 Mecab_Manager.NOT_REPLACE1 = "\2@@";
 
-Mecab_Manager.BAN_NEW_LINES =
-/^[\w\+\-\!\?\,\.\"\'ァィゥェォッャュョンぁぃぅぇぉっゃゅょん　」』）｝】＞≫！？、。・ー―…ゝ々：；]/;
+Mecab_Manager.BAN_NEW_LINES = /^[\u00C0-\u017FA-Za-z]$/i;
 
-Mecab_Manager.BAN_END_LINES =
-/\w「『（｛【＜≪［/;
+Mecab_Manager.BAN_FRONT_LINES =
+/^[\+\-\/\!\?\,\.\"\'ァィゥェォッャュョンぁぃぅぇぉっゃゅょん　」』\)）｝】＞≫！？、ー―…ゝ々：；]$/;
+
+Mecab_Manager.BAN_BACK_LINES =
+/^[「『\(（｛【＜≪［]$/;
 
 //=========================================================================================
 // - 語尾リスト（一つずつずらしながら置き換えられる）
@@ -614,7 +574,8 @@ Mecab_Manager.GOBI_LIST = {
 	  "ロゴカラー": ["#222", "#fc6"],
 	  "画像ソース": "", //自動生成
       "品詞置換":{ // 形態素の正規表現: ["品詞の一部", [置換先文字列x3]]
-        "^あり|おり$":            ["非自立可能", ["あって", "あり", "あるから"]],
+        "^あり$":            ["非自立可能", ["あって", "あり", "あるから"]],
+        "^おり$":            ["非自立可能", ["いて", "おり", "いて"]],
         "^しばしば$":             ["副詞", ["よく", "しばしば", "よく"]],
         "^すなわち|即ち$":        ["接続詞", ["つまり", "ということは", "つまり"]],
         "^など|等$":              ["助詞-副助詞", ["とか", "とか", "など"]],
@@ -655,7 +616,8 @@ Mecab_Manager.GOBI_LIST = {
       "品詞置換":{
           "^しかし|、しかし$":   ["接続詞", ["しかし", "だけど", "でも"]],
           "^すなわち|即ち$":      ["接続詞", ["つまり", "すなわち", "つまり"]],
-          "^あり|おり$":          ["非自立可能", ["あって", "あり", "あるから"]],
+		  "^あり$":            ["非自立可能", ["あって", "あり", "あるから"]],
+		  "^おり$":            ["非自立可能", ["いて", "おり", "いて"]],
           "^しばしば$":           ["副詞", ["よく", "しばしば", "よく"]],
           "^かつて$":             ["副詞", ["昔", "かつて", "昔"]],
           "^など|等$":            ["助詞-副助詞", ["とか", "とか", "など"]],
@@ -698,7 +660,8 @@ Mecab_Manager.GOBI_LIST = {
         "^しかし|、しかし$":     ["接続詞", ["でも", "だけど", "しかし"]],
         "^すなわち|即ち$":        ["接続詞", ["つまり", "つまり", "つまり"]],
         "^より$":                 ["動詞-一般", ["よって", "よって", "より"]],
-        "^あり|おり$":            ["非自立可能", ["あって", "あって", "あって"]],
+		"^あり$":            ["非自立可能", ["あって", "あって", "あって"]],
+		"^おり$":            ["非自立可能", ["いて", "おり", "いて"]],
         "^しばしば$":             ["副詞", ["よく", "よく", "よく"]],
         "^かつて$":               ["副詞", ["昔", "かつて", "昔"]],
         "^など|等$":              ["助詞-副助詞", ["とか", "とか", "とか"]],
