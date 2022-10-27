@@ -42,12 +42,17 @@ def back(request):
     return HttpResponse('null')
 
 # back processings
-def _export_html(header, params):
-    res = requests.get(header + params).text
+def _export_html(root, params):
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) > > AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1",
     }
-    return HttpResponse(res, headers=headers)
+    res = requests.get(
+        root + params,
+        headers=headers,
+        timeout=10,
+        verify=False
+    ).text
+    return HttpResponse(res)
 
 def _export_mecab(params):
     tagger = MeCab.Tagger()
