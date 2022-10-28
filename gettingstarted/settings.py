@@ -30,11 +30,9 @@ SECRET_KEY = "CHANGE_ME!!!! (P.S. the SECRET_KEY environment variable will be us
 if 'SECRET_KEY' in os.environ:
     SECRET_KEY = os.environ["SECRET_KEY"]
 
-os.environ["CURL_CA_BUNDLE"] = ""
-
 # Generally avoid wildcards(*). However since Heroku router provides hostname validation it is ok
 if IS_HEROKU:
-    ALLOWED_HOSTS = []
+    ALLOWED_HOSTS = ["*"]
 else:
     ALLOWED_HOSTS = []
 
@@ -55,10 +53,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+#    "django.middleware.security.SecurityMiddleware",
+#    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
+#    "django.middleware.common.CommonMiddleware",
 #    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
