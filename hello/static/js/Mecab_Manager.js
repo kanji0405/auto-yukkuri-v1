@@ -226,6 +226,8 @@ class Mecab_Manager{
 		// mecabに消されないように半角スペースを全角に
 		text = text.replace(/\s+/gm, '　');
 		text = this.clip_out_brackets(text);
+		// brタグを改行コードに置換
+		// text = text.replace(/<br(\s*\/)?>/, "<span>\n</span>");
 		return text;
 	}
 
