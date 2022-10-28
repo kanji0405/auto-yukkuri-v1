@@ -25,7 +25,7 @@ def back(request):
         if   mode == 'wiki':
             return _export_html("https://ja.wikipedia.org/wiki/", params)
         elif mode == 'nico':
-            return _export_html("https://dic.nicovideo.jp/t/a/", params)
+            return _export_html("http://dic.nicovideo.jp/t/a/", params)
         elif mode == 'pixiv':
             return _export_html("https://dic.pixiv.net/a/", params)
         # other
