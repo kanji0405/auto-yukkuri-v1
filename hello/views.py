@@ -56,7 +56,7 @@ def _export_html(root, params):
     res = requests.get(
         root + params,
         headers=headers,
-        verify=False,
+        verify="/etc/ssl/certs",
         timeout=(10.0, 15.0)
     ).text
     return HttpResponse(res)
