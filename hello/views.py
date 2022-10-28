@@ -3,6 +3,10 @@ from django.shortcuts import render
 from django.http import HttpResponse
 
 import requests
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
+urllib3.disable_warnings(InsecureRequestWarning)
+
 import MeCab
 import json
 import difflib
@@ -49,7 +53,7 @@ def _export_html(root, params):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
         "Access-Control-Allow-Origin": "*",
     }
-    res = requests.get(
+    res = requests.post(
         root + params,
         headers=headers,
         verify=False,

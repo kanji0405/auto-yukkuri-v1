@@ -162,7 +162,7 @@ class Mecab_Manager{
 				case 'li':{
 					if (isNoneedParagraph){ continue; }
 					if (str.endsWith('。')){ str = str.slice(0, -1); }
-					text += nr0 + str + "、" + nr1;
+					text += nr0 + "・" + str + "。" + nr1;
 					break;
 				}
 			}
