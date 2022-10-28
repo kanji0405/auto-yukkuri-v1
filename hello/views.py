@@ -53,7 +53,7 @@ def _export_html(root, params):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
         "Access-Control-Allow-Origin": "*",
     }
-    res = requests.post(
+    res = requests.get(
         root + params,
         headers=headers,
         verify=False,
