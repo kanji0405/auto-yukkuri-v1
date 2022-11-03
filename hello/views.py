@@ -55,16 +55,9 @@ def _export_html(root, params):
     }
     url = root + params
 
-    http = urllib3.PoolManager()
-    response = http.request('GET', url, headers=headers)
-    res = response.data
-
-    #res = requests.get(
-    #    root + params,
-    #    headers=headers,
-    #    verify=False,
-    #    timeout=(10.0, 15.0)
-    #).text
+    res = requests.get(
+        url, headers=headers, verify=False, timeout=(10.0, 15.0)
+    ).text
     return HttpResponse(res)
 
 def _export_mecab(params):

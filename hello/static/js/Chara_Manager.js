@@ -1,1 +1,0 @@
-class Chara_Manager{}

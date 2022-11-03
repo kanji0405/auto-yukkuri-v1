@@ -1,17 +1,10 @@
 /*
-Wikipedia
 1. (PY)URL先取得
-2. (JS)DOMから文章抽出、括弧を消す
-自由作文
-1. (JS)そのまま渡す
-
-共通処理
-2. (PY)Mecabで形態素解析
-3. (JS)任せる
-（処理軽量化）
-4. (PY)JSの結果を受け取り再び形態素解析
+2. (JS)DOMから文章抽出、括弧を消す or 自由作文
+s3. (PY)Mecabで形態素解析
+4. (JS)任せる（処理軽量化）
 5. (JS)改行処理
-6. (PY)CSVにフォーマット
+6. (PY)difff, CSVにフォーマット
 */
 class Mecab_Manager{
 	// this._processMode = "";
@@ -144,7 +137,8 @@ class Mecab_Manager{
 				}
 				case 'p':{
 					if (isNoneedParagraph){ continue; }
-					text += str;
+					if (str.endsWith('。')){ str = str.slice(0, -1); }
+					text += str + "。";
 					break;
 				}
 				case 'dt':{
@@ -218,8 +212,8 @@ class Mecab_Manager{
 
 	static textPlainFormat(text){
 		// 「」内の語尾変化を行わない
-		text = text.replace(/[ 　]*([「『【])[ 　]*/g, Mecab_Manager.NOT_REPLACE0 + '$1');
-		text = text.replace(/[ 　]*([」』】])[ 　]*/g, '$1' + Mecab_Manager.NOT_REPLACE1);
+		text = text.replace(/[ 　\n]*([「『【])[ 　\n]*/g, Mecab_Manager.NOT_REPLACE0 + '$1');
+		text = text.replace(/[ 　\n]*([」』】])[ 　\n]*/g, '$1' + Mecab_Manager.NOT_REPLACE1);
 		// 不要なスペース、改行を除去
 		text = text.replace(/[ 　]*[\n\r]+[ 　]*/gm, '');
 		text = text.replace(/^\s+|\s*。\s*/gm, '。');
@@ -244,13 +238,6 @@ class Mecab_Manager{
 			let [old_text, new_text] = this.processChangeSpeaking(
 				mecab, speaker
 			);
-
-			/*
-			this.setProcessingMode('py');
-			mecab = await this.processParseByMecab(new_text);
-			*/
-			this.setProcessingMode('js');
-
 			const new_texts = this.processNewLine(new_text, newLineNum, newLineSize);
 			const old_texts = this.processNewLine(old_text, newLineNum, newLineSize);
 
@@ -352,16 +339,14 @@ class Mecab_Manager{
 	static async processShowDifference(){
 		const old_texts = this._result.old_text;
 		const new_texts = this._result.new_text;
-		const str_diff = '@!@';
-		const re_in = /\n/g;
-		const str_in = '@@@';
+		const re_new = /\n/g;
+		const str_new = "@@@";
 		let diff = await this.sendMessage('diff',
 			JSON.stringify([old_texts, new_texts].map(
-				str => [str.join(str_diff).replace(re_in, str_in)]
+				str1 => str1.map(str2 => str2.replace(re_new, str_new))
 			))
 		);
-		diff = diff.replace(new RegExp(str_in, 'g'), '<br>');
-		diff = diff.replace(new RegExp(str_diff, 'g'), '<hr>');
+		diff = diff.replace(new RegExp(str_new, 'g'), '<br>')
 		UI_Manager.finishMecabManager(this._result, diff);
 	}
 
@@ -393,10 +378,16 @@ class Mecab_Manager{
 	static processChangeSpeaking(mecab, speaker){
 		let randomize_count = 0;
 		const speaker_info = Mecab_Manager.GOBI_LIST[speaker];
-		function shift_random_count(term_list){
+		function shift_random_count(term_list, match){
 			const result = term_list[randomize_count];
 			randomize_count = (randomize_count + 1) % 3;
-			return result;
+			if (match !== undefined){
+				return result.replace(/\$(\d+)/, function(_, i){
+					return match[Number(i)] || "";
+				});
+			}else{
+				return result;
+			}
 		}
 		function parse_compile_hash(hash){
 			return Object.keys(hash).map(key => [new RegExp(key), hash[key]]);
@@ -415,6 +406,7 @@ class Mecab_Manager{
 		let all_texts = '';
 		mecab.forEach(function(noun_list){
 			let new_text = '';
+			let match;
 			noun_list.forEach(function(noun){
 				// 文中
 				let text = noun[0];
@@ -423,9 +415,9 @@ class Mecab_Manager{
 					const [term_type, cands] = re_bunchu[1];
 					if (
 						noun[Mecab_Manager.NOUN_TYPE].includes(term_type) &&
-						text.match(re_bunchu[0])
+						(match = text.match(re_bunchu[0]))
 					){
-						text = shift_random_count(cands);
+						text = shift_random_count(cands, match);
 						return true;
 					}
 					return false;
@@ -437,9 +429,9 @@ class Mecab_Manager{
 			re_tan_hash.forEach(function(re_tan){
 				// 同じ単語で無限ループすることを防ぐ
 				for (let i = 0; i < 100; i++){
-					if (new_text.match(re_tan)){
+					if (match = new_text.match(re_tan)){
 						new_text = new_text.replace(
-							re_tan[0], shift_random_count(re_tan[1])
+							re_tan[0], shift_random_count(re_tan[1], match)
 						);
 					}else{
 						break;
@@ -459,9 +451,9 @@ class Mecab_Manager{
 			}else if (noun[Mecab_Manager.NOUN_TYPE].includes("助動詞")){
 				// 語尾カウント
 				re_kei_hash.some(function(re_kei){
-					if (noun[0].match(re_kei[0])){
+					if (match = noun[0].match(re_kei[0])){
 						new_text = new_text.slice(0, -noun[0].length);
-						next = shift_random_count(re_kei[1]);
+						next = shift_random_count(re_kei[1], match);
 						return true;
 					}
 					return false;
@@ -607,6 +599,7 @@ Mecab_Manager.GOBI_LIST = {
 		"名詞-普通名詞-サ変可能": ["する", "するんだ", "するんだぜ"],
         "副助詞":       ["だ", "だ", "なんだぜ"],
         "名詞":         ["だ", "だ", "なんだぜ"],
+        "助詞":         ["だ", "だ", "なんだぜ"],
         "形容詞":       ["んだ", "", "んだぜ"],
         "動詞":         ["んだ", "ぜ", "んだぜ"]
       },
@@ -650,6 +643,7 @@ Mecab_Manager.GOBI_LIST = {
 		"名詞-普通名詞-サ変可能": ["する", "するの", "するのよ"],
         "副助詞":       ["よ", "なの", "なのよ"],
         "名詞":         ["よ", "なの", "なのよ"],
+        "助詞":         ["よ", "なの", "なのよ"],
         "形容詞":       ["わ", "ね", "の"],
         "動詞":         ["の", "わ", "んだって"]
       },
@@ -693,6 +687,7 @@ Mecab_Manager.GOBI_LIST = {
 		"名詞-普通名詞-サ変可能": ["する", "する", "するのだ"],
         "副助詞":       ["なのだ", "なのだ", "なのだ"],
         "名詞":         ["なのだ", "なのだ", "なのだ"],
+        "助詞":         ["なのだ", "なのだ", "なのだ"],
         "形容詞":       ["のだ", "のだ", "のだ"],
         "動詞":         ["のだ", "のだ", "のだ"]
       },
